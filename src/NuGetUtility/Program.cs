@@ -1,9 +1,10 @@
-﻿using McMaster.Extensions.CommandLineUtils;
+using McMaster.Extensions.CommandLineUtils;
 using NuGet.Configuration;
 using NuGet.Protocol.Core.Types;
 using NuGetUtility.ConsoleUtilities;
 using NuGetUtility.LicenseValidator;
 using NuGetUtility.PackageInformationReader;
+using NuGetUtility.RaSpecific;
 using NuGetUtility.ReferencedPackagesReader;
 using NuGetUtility.Serialization;
 using NuGetUtility.Wrapper.HttpClientWrapper;
@@ -62,6 +63,12 @@ namespace NuGetUtility
                 "When set, the application downloads all licenses given using a license URL to the specified folder.")]
         public string? DownloadLicenseInformation { get; } = null;
 
+        [Option(LongName = "output-ra-json",
+            ShortName = "orj",
+            Description =
+                "When set, creates a RA specific Json output to this file.")]
+        public string? OutputRaJson { get; } = null;
+
         private HttpClient HttpClient
         {
             get
@@ -99,6 +106,7 @@ namespace NuGetUtility
                 allowedLicenses,
                 urlLicenseFileDownloader);
             var projectReaderExceptions = new List<Exception>();
+            var raJsonOutputWriter = GetRaJsonOutputWriter();
 
             foreach (var project in projects)
             {
@@ -121,8 +129,15 @@ namespace NuGetUtility
                     overridePackageInformation);
                 var downloadedInfo = informationReader.GetPackageInfo(installedPackages, CancellationToken.None);
 
-                await validator.Validate(downloadedInfo, project);
+                await foreach (var info in downloadedInfo)
+                {
+                    await raJsonOutputWriter.AddRaw(project, info);
+                    await validator.Validate(info, project);
+                }
             }
+
+            await raJsonOutputWriter.AddValidatorResults(validator.GetValidatedLicenses(), validator.GetErrors());
+            await raJsonOutputWriter.Write();
 
             if (projectReaderExceptions.Any())
             {
@@ -143,6 +158,16 @@ namespace NuGetUtility
                     license => { return new object[] { license.PackageId, license.PackageVersion, license.License }; })
                 .Print();
             return 0;
+        }
+
+        private IRaJsonOutputWriter GetRaJsonOutputWriter()
+        {
+            if (string.IsNullOrEmpty(OutputRaJson))
+            {
+                return new NopRaJsonOutputWriter();
+            }
+
+            return new FileRaJsonOutputWriter(OutputRaJson);
         }
 
         private IFileDownloader GetFileDownloader()

@@ -1,4 +1,4 @@
-﻿using NuGet.Packaging;
+using NuGet.Packaging;
 using NuGet.Protocol.Core.Types;
 using NuGetUtility.Wrapper.HttpClientWrapper;
 
@@ -25,21 +25,26 @@ namespace NuGetUtility.LicenseValidator
         {
             await foreach (var info in downloadedInfo)
             {
-                if (info.LicenseMetadata != null)
-                {
-                    ValidateLicenseByMetadata(info, context);
-                }
-                else if (info.LicenseUrl != null)
-                {
-                    await ValidateLicenseByUrl(info, context);
-                }
-                else
-                {
-                    _errors.Add(new LicenseValidationError(context,
-                        info.Identity.Id,
-                        info.Identity.Version,
-                        "No license information found"));
-                }
+                await Validate(info, context);
+            }
+        }
+
+        public async Task Validate(IPackageSearchMetadata info, string context)
+        {
+            if (info.LicenseMetadata != null)
+            {
+                ValidateLicenseByMetadata(info, context);
+            }
+            else if (info.LicenseUrl != null)
+            {
+                await ValidateLicenseByUrl(info, context);
+            }
+            else
+            {
+                _errors.Add(new LicenseValidationError(context,
+                    info.Identity.Id,
+                    info.Identity.Version,
+                    "No license information found"));
             }
         }
 
