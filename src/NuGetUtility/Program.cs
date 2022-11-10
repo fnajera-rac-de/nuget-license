@@ -69,6 +69,12 @@ namespace NuGetUtility
                 "When set, creates a RA specific Json output to this file.")]
         public string? OutputRaJson { get; } = null;
 
+        [Option(LongName = "verbose",
+            ShortName = "v",
+            Description =
+                "If set, show extra information during the process")]
+        public bool Verbose { get; } = false;
+
         private HttpClient HttpClient
         {
             get
@@ -91,7 +97,12 @@ namespace NuGetUtility
 
         private async Task<int> OnExecuteAsync()
         {
-            var projects = GetProjects();
+            if (Verbose)
+            {
+                Console.WriteLine($"Starting...");
+            }
+
+            var projects = GetProjects().ToList();
             var ignoredPackages = GetIgnoredPackages();
             var licenseMappings = GetLicenseMappings();
             var allowedLicenses = GetAllowedLicenses();
@@ -108,8 +119,15 @@ namespace NuGetUtility
             var projectReaderExceptions = new List<Exception>();
             var raJsonOutputWriter = GetRaJsonOutputWriter();
 
-            foreach (var project in projects)
+            for (var projectIdx = 0; projectIdx < projects.Count; projectIdx++)
             {
+                var project = projects[projectIdx];
+
+                if (Verbose)
+                {
+                    Console.WriteLine($"Considering project {projectIdx + 1}/{projects.Count} - {project}...");
+                }
+
                 IEnumerable<IPackageSearchMetadata> installedPackages;
                 try
                 {
